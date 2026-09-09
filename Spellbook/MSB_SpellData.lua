@@ -40,26 +40,26 @@ local professionRanks = {
 	["专家级"] = true, ["大师级"] = true,
 }
 local professionSpells = {
-	-- English
+	-- English (from Spell.dbc; Herb Gathering / Survival are real spellbook names)
 	["Basic Campfire"] = true, ["Find Herbs"] = true, ["Find Minerals"] = true,
 	["Find Fish"] = true, ["Find Trees"] = true, ["Smelting"] = true, ["Disenchant"] = true,
 	["Pick Lock"] = true, ["Prospecting"] = true, ["Milling"] = true,
 	["Survey"] = true, ["Cooking Fire"] = true,
-	["Mining"] = true, ["Herbalism"] = true, ["Skinning"] = true,
+	["Mining"] = true, ["Herbalism"] = true, ["Herb Gathering"] = true, ["Skinning"] = true,
 	["Fishing"] = true, ["Cooking"] = true, ["First Aid"] = true,
 	["Tailoring"] = true, ["Leatherworking"] = true, ["Blacksmithing"] = true,
 	["Engineering"] = true, ["Enchanting"] = true, ["Alchemy"] = true,
-	["Jewelcrafting"] = true, ["Inscription"] = true,
-	-- zhCN
+	["Jewelcrafting"] = true, ["Inscription"] = true, ["Survival"] = true,
+	-- zhCN (from client Spell.dbc zhCN locale; Milling/Survey/Inscription not present)
 	["基础营火"] = true, ["寻找草药"] = true, ["寻找矿物"] = true,
-	["寻找鱼群"] = true, ["寻找木材"] = true, ["熔炼"] = true, ["分解"] = true,
-	["开锁"] = true, ["选矿"] = true, ["研磨"] = true,
+	["寻找渔点"] = true, ["寻找树木"] = true, ["熔炼"] = true, ["分解"] = true,
+	["开锁"] = true, ["勘探"] = true, ["研磨"] = true,
 	["勘测"] = true, ["烹饪用火"] = true,
-	["采矿"] = true, ["草药学"] = true, ["剥皮"] = true,
+	["采矿"] = true, ["草药学"] = true, ["采集草药"] = true, ["剥皮"] = true,
 	["钓鱼"] = true, ["烹饪"] = true, ["急救"] = true,
 	["裁缝"] = true, ["制皮"] = true, ["锻造"] = true,
 	["工程学"] = true, ["附魔"] = true, ["炼金术"] = true,
-	["珠宝加工"] = true, ["铭文"] = true,
+	["珠宝加工"] = true, ["铭文"] = true, ["生存"] = true,
 }
 
 class "CSpellDataService"

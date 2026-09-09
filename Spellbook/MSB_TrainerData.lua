@@ -53,14 +53,20 @@ class "CTrainerDataService"
 
 		if (not isClassTrainer) then return end
 
-		-- Save current filter state so we can restore after scanning
-		local savedFilters = { available = 1, unavailable = 1, used = 1 }
+		-- Save current filter state so we can restore after scanning.
+		-- 1.12 GetTrainerServiceTypeFilter returns 1 or nil (not 0), so nil must
+		-- be stored as 0 — otherwise unchecked filters are restored as enabled.
+		local savedFilters = { available = 1, unavailable = 0, used = 0 }
 		local filterTypes = { "available", "unavailable", "used" }
+		local savedDropdownValue
+		if (ClassTrainerFrameFilterDropDown and UIDropDownMenu_GetSelectedValue) then
+			savedDropdownValue = UIDropDownMenu_GetSelectedValue(ClassTrainerFrameFilterDropDown)
+		end
 		if (GetTrainerServiceTypeFilter) then
 			for _, ft in ipairs(filterTypes) do
 				local ok, val = pcall(GetTrainerServiceTypeFilter, ft)
-				if (ok and val ~= nil) then
-					savedFilters[ft] = val
+				if (ok) then
+					savedFilters[ft] = (val and val ~= 0) and 1 or 0
 				end
 			end
 		end
@@ -69,8 +75,47 @@ class "CTrainerDataService"
 			pcall(function()
 				if (SetTrainerServiceTypeFilter) then
 					for _, ft in ipairs(filterTypes) do
-						SetTrainerServiceTypeFilter(ft, savedFilters[ft], 1)
+						SetTrainerServiceTypeFilter(ft, savedFilters[ft] or 0)
 					end
+				end
+
+				-- Sync the vanilla dropdown label; SetTrainerServiceTypeFilter
+				-- changes the service list but does not update this widget.
+				if (ClassTrainerFrameFilterDropDown) then
+					local value = savedDropdownValue
+					if (not value) then
+						local a = savedFilters.available == 1
+						local u = savedFilters.unavailable == 1
+						local k = savedFilters.used == 1
+						if (a and not u and not k) then
+							value = "available"
+						elseif (u and not a and not k) then
+							value = "unavailable"
+						elseif (k and not a and not u) then
+							value = "used"
+						else
+							value = "all"
+						end
+					end
+					if (UIDropDownMenu_SetSelectedValue) then
+						UIDropDownMenu_SetSelectedValue(ClassTrainerFrameFilterDropDown, value)
+					end
+					local text
+					if (value == "available") then
+						text = (GREEN_FONT_COLOR_CODE or "") .. (AVAILABLE or "Available") .. (FONT_COLOR_CODE_CLOSE or "")
+					elseif (value == "unavailable") then
+						text = (RED_FONT_COLOR_CODE or "") .. (UNAVAILABLE or "Unavailable") .. (FONT_COLOR_CODE_CLOSE or "")
+					elseif (value == "used") then
+						text = (GRAY_FONT_COLOR_CODE or "") .. (USED or "Used") .. (FONT_COLOR_CODE_CLOSE or "")
+					else
+						text = ALL or "All"
+					end
+					if (UIDropDownMenu_SetText) then
+						UIDropDownMenu_SetText(text, ClassTrainerFrameFilterDropDown)
+					end
+				end
+				if (ClassTrainerFrame_Update) then
+					ClassTrainerFrame_Update()
 				end
 			end)
 		end
@@ -78,9 +123,9 @@ class "CTrainerDataService"
 		-- Enable all filters so we capture everything, then re-count
 		pcall(function()
 			if (SetTrainerServiceTypeFilter) then
-				SetTrainerServiceTypeFilter("available", 1, 1)
-				SetTrainerServiceTypeFilter("unavailable", 1, 1)
-				SetTrainerServiceTypeFilter("used", 1, 1)
+				SetTrainerServiceTypeFilter("available", 1)
+				SetTrainerServiceTypeFilter("unavailable", 1)
+				SetTrainerServiceTypeFilter("used", 1)
 			end
 		end)
 
