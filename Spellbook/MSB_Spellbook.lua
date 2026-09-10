@@ -51,7 +51,8 @@ local leftButtons = {"ShowPassiveSpellsCheckBox", "ShowAllSpellRanksCheckbox", "
 class "CSpellBook"
 {
 	__init = function(self)
-		-- Create the main frame
+		-- Child of SpellBookFrame so P / ToggleSpellBook show-hide stays in sync.
+		-- DIALOG strata (ApplyFrameLayer) keeps us above the talent tree (HIGH).
 		self.frame = CreateFrame("Frame", "ModernSpellBookFrame", SpellBookFrame)
 		self.frame:SetBackdrop({
 			bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -153,6 +154,7 @@ class "CSpellBook"
 	end;
 
 	OnShow = function(self)
+		self:ApplyFrameLayer()
 		PlaySound(SOUNDKIT.IG_SPELLBOOK_OPEN)
 		ActionBarHelper:ShowAllGrids()
 
@@ -286,8 +288,7 @@ class "CSpellBook"
 		else
 			self.frame:SetPoint("CENTER", UIParent, "CENTER", 0, windowSettings.posy)
 		end
-		self.frame:SetFrameStrata("HIGH")
-		self.frame:SetFrameLevel(50)
+		self:ApplyFrameLayer()
 		if (ModernSpellBook_DB.windowScale) then
 			self.frame:SetScale(ModernSpellBook_DB.windowScale)
 		end
@@ -562,10 +563,22 @@ class "CSpellBook"
 		end)
 	end;
 
+	-- Talent tree is HIGH; its icon borders/arrows are separate frames and will
+	-- draw through this window if we share that strata. DIALOG keeps us above.
+	ApplyFrameLayer = function(self)
+		self.frame:SetFrameStrata("DIALOG")
+		self.frame:SetFrameLevel(50)
+		self.frame:Raise()
+		if (SpellBookCloseButton) then
+			SpellBookCloseButton:SetFrameStrata("DIALOG")
+			SpellBookCloseButton:SetFrameLevel(self.frame:GetFrameLevel() + 10)
+		end
+	end;
+
 	AddCancelButton = function(self)
 		SpellBookCloseButton:ClearAllPoints()
 		SpellBookCloseButton:SetPoint("CENTER", self.frame.CloseButton, "CENTER", 0, 0)
-		SpellBookCloseButton:SetFrameStrata("DIALOG")
+		self:ApplyFrameLayer()
 		if (ModernSpellBook_DB.windowScale) then
 			SpellBookCloseButton:SetScale(ModernSpellBook_DB.windowScale)
 		end

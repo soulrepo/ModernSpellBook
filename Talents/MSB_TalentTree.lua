@@ -281,6 +281,11 @@ class "CTalentTree"
 		end)
 		self.frame:Hide()
 		table.insert(UISpecialFrames, "ModernTalentTreeFrame")
+		self.frame:SetScript("OnShow", function()
+			if (SpellBook) then
+				SpellBook:ApplyFrameLayer()
+			end
+		end)
 
 		-- Restore saved position and scale
 		if (ModernSpellBook_DB and ModernSpellBook_DB.talentPosition) then
