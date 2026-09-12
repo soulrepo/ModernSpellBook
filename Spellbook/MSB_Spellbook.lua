@@ -51,6 +51,17 @@ local leftButtons = {"ShowPassiveSpellsCheckBox", "ShowAllSpellRanksCheckbox", "
 class "CSpellBook"
 {
 	__init = function(self)
+		-- Save before SetupFrame/ApplyFrameLayer changes the shared close button.
+		self.vanillaCloseButton = {
+			points = {},
+			scale = SpellBookCloseButton:GetScale(),
+			strata = SpellBookCloseButton:GetFrameStrata(),
+			level = SpellBookCloseButton:GetFrameLevel(),
+		}
+		for i = 1, SpellBookCloseButton:GetNumPoints() do
+			self.vanillaCloseButton.points[i] = { SpellBookCloseButton:GetPoint(i) }
+		end
+
 		-- Child of SpellBookFrame so P / ToggleSpellBook show-hide stays in sync.
 		-- DIALOG strata (ApplyFrameLayer) keeps us above the talent tree (HIGH).
 		self.frame = CreateFrame("Frame", "ModernSpellBookFrame", SpellBookFrame)
@@ -146,6 +157,7 @@ class "CSpellBook"
 		if (self.frame:IsVisible()) then
 			C_Timer.After(0.3, function()
 				self.frame.tab3:UpdateAsPetTab()
+				self:CreateCustomTabs()
 				SpellBook:DrawPage()
 			end)
 		else
@@ -579,11 +591,20 @@ class "CSpellBook"
 		SpellBookCloseButton:ClearAllPoints()
 		SpellBookCloseButton:SetPoint("CENTER", self.frame.CloseButton, "CENTER", 0, 0)
 		self:ApplyFrameLayer()
-		if (ModernSpellBook_DB.windowScale) then
-			SpellBookCloseButton:SetScale(ModernSpellBook_DB.windowScale)
-		end
+		SpellBookCloseButton:SetScale(self.frame:GetScale())
 		self.frame.CloseButton:Disable()
 		self.frame.CloseButton:Hide()
+	end;
+
+	RestoreVanillaCloseButton = function(self)
+		local layout = self.vanillaCloseButton
+		SpellBookCloseButton:ClearAllPoints()
+		for _, point in ipairs(layout.points) do
+			SpellBookCloseButton:SetPoint(unpack(point))
+		end
+		SpellBookCloseButton:SetScale(layout.scale)
+		SpellBookCloseButton:SetFrameStrata(layout.strata)
+		SpellBookCloseButton:SetFrameLevel(layout.level)
 	end;
 
 	-- ========================= SHAPE =============================
@@ -788,13 +809,17 @@ class "CSpellBook"
 	end;
 
 	RefreshPage = function(self)
+		-- Initial search callbacks must not discard the remembered page before data loads.
+		if (not self.frame.AllSpells) then return end
 
 		local filterString = self.frame.searchBar:GetText() or ""
 		local filteredSpells = SpellDataService:FilterSpells(filterString)
 
 		if (next(filteredSpells) == nil) then
+			self.frame.noresultsText:SetText(self.frame.ClientLocale.NoResults.. NEW.. ", ".. TALENT.. "'")
 			self.frame.noresultsText:Show()
-			self:CleanPages()
+			self.frame.pageCollection = {}
+			self:RefreshPageElements()
 			return
 		end
 
@@ -806,7 +831,6 @@ class "CSpellBook"
 	DrawPage = function(self)
 
 		spellUpdateRequired = false
-		self.frame.stanceButtons = {}
 
 		local AllSpells, isPetTab = SpellDataService:GetAvailableSpells()
 		self.frame.AllSpells = AllSpells
@@ -819,9 +843,12 @@ class "CSpellBook"
 			end
 
 			if (totalSpells == 0) then
-				self:CleanPages()
+				self.frame.pageCollection = {}
+				self:RefreshPageElements()
 				self.frame.noresultsText:SetText(self.frame.ClientLocale.NoPetSpells)
 				self.frame.noresultsText:Show()
+				SpellDataService:UpdateSpellCounter()
+				self:UpdateUpcomingSpells()
 				return
 			else
 				self.frame.noresultsText:Hide()
@@ -836,10 +863,12 @@ class "CSpellBook"
 	RefreshPageElements = function(self)
 		self:CleanPages()
 
-		local pageCollection = self.frame.pageCollection
-		self.frame.currentPage = math.min(self.frame.currentPage, table.getn(pageCollection))
-		local currentPage = self.frame.currentPage
+		local pageCollection = self.frame.pageCollection or {}
 		self.frame.maxPages = math.max(1, table.getn(pageCollection))
+		self.frame.currentPage = math.max(1, math.min(self.frame.currentPage or 1, self.frame.maxPages))
+		local currentPage = self.frame.currentPage
+		-- Search callbacks may run while the initial controls are being created.
+		if (not self.frame.pageText) then return end
 
 		if (self.frame.maxPages > 1) then
 			self.frame.pageText:SetText(string.format(PRODUCT_CHOICE_PAGE_NUMBER, currentPage, self.frame.maxPages))
@@ -893,8 +922,6 @@ class "CSpellBook"
 	-- =================== CUSTOM TABS =============================
 
 	CreateCustomTabs = function(self)
-		if (self.frame.otherTabCreated) then return end
-
 		-- Build a lookup from any recognised form of a custom tab name to its canonical
 		-- English key. The canonical key drives MSB_L("CompanionsTab" etc.) for the label.
 		-- The ACTUAL name returned by GetSpellTabInfo is stored in customTabMap so that
@@ -938,6 +965,7 @@ class "CSpellBook"
 
 		local numTabs = GetNumSpellTabs and GetNumSpellTabs() or 4
 		self.frame.customTabMap = self.frame.customTabMap or {}
+		self.frame.customTabsByName = self.frame.customTabsByName or {}
 		local createdAny = false
 		local seen = {}
 
@@ -946,17 +974,21 @@ class "CSpellBook"
 			if (tabName and numSpells and numSpells > 0) then
 				local canonical = nameToCanonical[tabName]
 				if (canonical and not seen[canonical]) then
-					local tab = self:NewTab(MSB_L(canonical .. "Tab"))
+					local tab = self.frame.customTabsByName[canonical]
+					if (not tab) then
+						tab = self:NewTab(MSB_L(canonical .. "Tab"))
+						self.frame.customTabsByName[canonical] = tab
+						if (self.frame.selectedTab == tab.tab_number) then tab:SetSelected() end
+						createdAny = true
+					end
 					-- Store the actual (possibly localised) tab name for data lookup
 					self.frame.customTabMap[tab.tab_number] = tabName
 					seen[canonical] = true
-					createdAny = true
 				end
 			end
 		end
 
 		if (createdAny) then
-			self.frame.otherTabCreated = true
 			self:PositionAllTabs()
 		end
 	end;
@@ -1036,6 +1068,8 @@ class "CSpellBook"
 	-- ==================== POOL FACTORIES =========================
 
 	CleanPages = function(self)
+		-- Pooled items can represent different spells after paging or filtering.
+		self.frame.stanceButtons = {}
 		for i = 1, totalSpellItems do
 			self.frame["Spell".. i]:Hide()
 		end

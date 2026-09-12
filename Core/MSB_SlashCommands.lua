@@ -72,6 +72,7 @@ class "CSlashCommands"
 
 		-- Hide our frame
 		ModernSpellBookFrame:Hide()
+		SpellBook:RestoreVanillaCloseButton()
 
 		DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00ModernSpellBook:|r " .. MSB_L("CmdDisabled"))
 	end;
@@ -87,6 +88,7 @@ class "CSlashCommands"
 		end
 
 		-- Hide vanilla children
+		SpellBook:AddCancelButton()
 		SpellBook:DisableVanillaSpellBook()
 
 		DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00ModernSpellBook:|r " .. MSB_L("CmdEnabled"))

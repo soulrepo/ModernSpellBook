@@ -86,6 +86,9 @@ end
 
 -- MSB-scoped wrappers: use vanilla API if available, otherwise fallback
 function MSB_IsPassiveSpell(index, bookType)
+    if (IsSpellPassive) then
+        return IsSpellPassive(index, bookType or BOOKTYPE_SPELL)
+    end
     if (IsPassiveSpell) then
         return IsPassiveSpell(index, bookType)
     end
@@ -95,6 +98,46 @@ function MSB_IsPassiveSpell(index, bookType)
         return true
     end
     return false
+end
+
+-- Vanilla cooldowns require a current spellbook slot and book type.
+-- Cache only book bounds; verify the slot's identity before each native query.
+do
+    local bookSizes = {}
+    local bookEvents = CreateFrame("Frame")
+    bookEvents:RegisterEvent("SPELLS_CHANGED")
+    bookEvents:RegisterEvent("PET_BAR_UPDATE")
+    bookEvents:RegisterEvent("UNIT_PET")
+    bookEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
+    bookEvents:SetScript("OnEvent", function() bookSizes = {} end)
+
+    function MSB_GetSpellBookCooldown(index, bookType, expectedName, expectedRank)
+        bookType = bookType or BOOKTYPE_SPELL
+        if (type(index) ~= "number" or index < 1 or index ~= math.floor(index)) then return nil end
+        if (not expectedName or (bookType ~= BOOKTYPE_SPELL and bookType ~= BOOKTYPE_PET)) then return nil end
+
+        if (bookSizes[bookType] == nil) then
+            local size = 0
+            if (bookType == BOOKTYPE_PET) then
+                size = HasPetSpells() or 0
+            else
+                for tab = 1, GetNumSpellTabs() do
+                    local _, _, offset, count = GetSpellTabInfo(tab)
+                    if (offset and count) then size = math.max(size, offset + count) end
+                end
+            end
+            bookSizes[bookType] = size
+        end
+        if (index > bookSizes[bookType]) then return nil end
+
+        local ok, name, rank = pcall(MSB_GetSpellBookItemName, index, bookType)
+        if (not ok or name ~= expectedName or (rank or "") ~= (expectedRank or "")) then return nil end
+
+        -- A changed/removed slot is skipped until the spellbook redraw binds it again.
+        local ok, start, duration, enable = pcall(GetSpellCooldown, index, bookType)
+        if (ok) then return start, duration, enable end
+        return nil
+    end
 end
 
 function MSB_IsSpellHidden(index, bookType)

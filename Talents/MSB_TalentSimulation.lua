@@ -197,7 +197,9 @@ class "CTalentSimulation"
 
 		local tabStrings = { parts[3] or "", parts[4] or "", parts[5] or "" }
 		local newPlan = self:BlankPlan(nil)
+		local tierPointsByTab = {}
 		for tab = 1, 3 do
+			tierPointsByTab[tab] = {}
 			local s = tabStrings[tab]
 			local n = GetNumTalents(tab)
 			for i = 1, n do
@@ -209,15 +211,16 @@ class "CTalentSimulation"
 					newPlan[tab][i] = rank
 					newPlan[tab].points = newPlan[tab].points + rank
 					newPlan.points = newPlan.points + rank
+					tierPointsByTab[tab][tier] = (tierPointsByTab[tab][tier] or 0) + rank
 				end
 			end
 		end
 
-		-- Cap total points and drop illegal ranks (tier / prereq)
+		-- Reject plans that exceed the point cap or violate tier / prereq rules
 		if (newPlan.points > TALENT_POINTS_AT_60) then
 			return false, "format"
 		end
-		-- Temporarily install as working so MeetsPlannedPrereqs / IsTierUnlocked work
+		-- Temporarily install as working so MeetsPlannedPrereqs can inspect it
 		local playerData = ModernSpellBook_DB.talentPlans[self.playerKey]
 		if (not playerData) then return false, "format" end
 		local prevWorking = playerData.working
@@ -227,10 +230,12 @@ class "CTalentSimulation"
 				local rank = newPlan[tab][i] or 0
 				if (rank > 0) then
 					local _, _, tier = GetTalentInfo(tab, i)
-					-- Check as if this talent had (rank-1) already for prereq of itself at first point
-					-- Simpler: require tier unlocked by points excluding this talent's own contribution beyond first
-					local pointsWithout = newPlan[tab].points - rank
-					if (pointsWithout < (tier - 1) * 5) then
+					-- Only lower tiers can unlock this tier; same/higher tiers cannot fund each other.
+					local lowerTierPoints = 0
+					for lowerTier = 1, tier - 1 do
+						lowerTierPoints = lowerTierPoints + (tierPointsByTab[tab][lowerTier] or 0)
+					end
+					if (lowerTierPoints < (tier - 1) * 5) then
 						playerData.working = prevWorking
 						return false, "format"
 					end
@@ -452,6 +457,22 @@ class "CTalentSimulation"
 		if (message) then
 			MSB_SimulationNotify(message)
 		end
+		if (TalentTree and TalentTree.frame:IsVisible()) then
+			TalentTree:UpdateSimControls()
+		end
+	end;
+
+	ScheduleApplyCheck = function(self, state, request)
+		C_Timer.After(0.1, function()
+			-- A completed request or stopped apply must not advance a newer one.
+			if (self.applyState ~= state or state.waiting ~= request) then return end
+			self:ContinueApply()
+			if (self.applyState == state and state.waiting == request) then
+				self:ScheduleApplyCheck(state, request)
+			elseif (TalentTree and TalentTree.frame:IsVisible()) then
+				TalentTree:Refresh()
+			end
+		end)
 	end;
 
 	GetApplyStatus = function(self)
@@ -583,9 +604,11 @@ class "CTalentSimulation"
 		self.applyState.lastPoints = UnitCharacterPoints("player")
 		local _, _, _, _, currRank = GetTalentInfo(tabID, talentID)
 		self.applyState.lastRank = currRank
-		self.applyState.waiting = true
+		local request = {}
+		self.applyState.waiting = request
 		self.applyState.waitStarted = GetTime()
 
+		self:ScheduleApplyCheck(self.applyState, request)
 		LearnTalent(tabID, talentID)
 	end;
 

@@ -81,10 +81,21 @@ class "CTalentConnection"
 	end;
 
 	Clear = function(self)
+		self:Hide()
+		self.arrow_count = 0
+	end;
+
+	-- Hiding a cached grid must keep its route and visual state intact.
+	Hide = function(self)
 		for i = 1, self.arrow_count do
 			self.arrows[i]:Hide()
 		end
-		self.arrow_count = 0
+	end;
+
+	Show = function(self)
+		for i = 1, self.arrow_count do
+			self.arrows[i]:Show()
+		end
 	end;
 
 	-- =================== ROUTING =================================

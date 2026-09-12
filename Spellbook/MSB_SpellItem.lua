@@ -86,7 +86,6 @@ class "CSpellItem"
 	-- ==================== CONFIGURATION ==========================
 
 	SetClickHandler = function(self, spellInfo)
-		local iconTex = self.spellIcon.icon
 		self.frame:SetScript("OnClick", function()
 			if (IsShiftKeyDown()) then return end
 			if (spellInfo.isUnlearned) then return end
@@ -94,15 +93,6 @@ class "CSpellItem"
 			if (spellInfo.isPetSpell) then
 				if (spellInfo.castName) then
 					CastPetAction(spellInfo.castName)
-					C_Timer.After(0.2, function()
-						if (spellInfo.castName == nil) then
-							UIErrorsFrame:AddMessage(MSB_L("PetSpellWarning", spellInfo.spellName or ""), 1.0, 0.1, 0.1, 1.0)
-							PlaySound("igQuestFailed")
-							return
-						end
-						local name, texture = GetPetActionInfo(spellInfo.castName)
-						iconTex:SetTexture(texture)
-					end)
 				else
 					UIErrorsFrame:AddMessage(MSB_L("PetSpellWarning", spellInfo.spellName or ""), 1.0, 0.1, 0.1, 1.0)
 					PlaySound("igQuestFailed")
@@ -278,6 +268,12 @@ class "CSpellItem"
 	SetCooldownAndDrag = function(self, spellInfo)
 		local frame = self.frame
 		local cooldown = self.spellIcon.cooldown
+		local cdFunc = CooldownFrame_SetTimer or CooldownFrame_Set
+		frame:SetScript("OnUpdate", nil)
+		if (cooldown) then
+			if (cdFunc) then cdFunc(cooldown, 0, 0, 0) end
+			cooldown:Hide()
+		end
 		if (not spellInfo.isPassive and not spellInfo.isUnlearned) then
 			frame:SetMovable(true)
 			frame:SetScript("OnDragStart", function()
@@ -287,19 +283,26 @@ class "CSpellItem"
 					PickupSpell(spellInfo.spellID, BOOKTYPE_SPELL)
 				end
 			end)
-			frame:SetScript("OnUpdate", function()
-				if (not frame:IsVisible()) then return end
-				-- Query by spell name to avoid CTD from stale slot indices
-				local ok, start, duration, enable = pcall(GetSpellCooldown, spellInfo.castName or spellInfo.spellName)
-				if (ok and start and cooldown) then
-					local cdFunc = CooldownFrame_SetTimer or CooldownFrame_Set
-					if (cdFunc) then cdFunc(cooldown, start, duration, enable) end
+			if (cooldown and cdFunc) then
+				local nextUpdate = 0
+				local function updateCooldown()
+					local now = GetTime()
+					if (now < nextUpdate) then return end
+					nextUpdate = now + 0.1
+					local bookType = spellInfo.bookType or (spellInfo.isPetSpell and BOOKTYPE_PET or BOOKTYPE_SPELL)
+					local start, duration, enable = MSB_GetSpellBookCooldown(spellInfo.spellID, bookType, spellInfo.spellName, spellInfo.spellRank)
+					if (start and duration) then
+						cdFunc(cooldown, start, duration, enable)
+					else
+						cdFunc(cooldown, 0, 0, 0)
+						cooldown:Hide()
+					end
 				end
-			end)
+				frame:SetScript("OnUpdate", updateCooldown)
+				updateCooldown()
+			end
 		else
-			if (cooldown) then cooldown:Hide() end
 			frame:SetMovable(false)
-			frame:SetScript("OnUpdate", nil)
 			frame:SetScript("OnDragStart", nil)
 		end
 	end;

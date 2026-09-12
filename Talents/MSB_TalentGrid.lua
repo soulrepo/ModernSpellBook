@@ -422,7 +422,7 @@ class "CTalentGrid"
 			talent.frame:Hide()
 		end
 		for _, connData in ipairs(self.connections) do
-			connData.connection:Clear()
+			connData.connection:Hide()
 		end
 		if (self.lines_frame) then
 			self.lines_frame:Hide()
@@ -434,6 +434,12 @@ class "CTalentGrid"
 	Show = function(self)
 		for _, talent in ipairs(self.icons) do
 			talent.frame:Show()
+		end
+		for _, connData in ipairs(self.connections) do
+			connData.connection:Show()
+		end
+		if (self.lines_frame) then
+			self.lines_frame:Show()
 		end
 	end;
 }
