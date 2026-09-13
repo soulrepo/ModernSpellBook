@@ -145,7 +145,7 @@ class "CSpellBook"
 		)
 
 		self:SetShape(ModernSpellBook_DB.isMinimized)
-		self:DisableVanillaSpellBook()
+		self:ApplyModernOverlay()
 		self:ForceLoad()
 
 		self.frame:UnregisterEvent("ADDON_LOADED")
@@ -166,6 +166,7 @@ class "CSpellBook"
 	end;
 
 	OnShow = function(self)
+		self:ApplyModernOverlay()
 		self:ApplyFrameLayer()
 		PlaySound(SOUNDKIT.IG_SPELLBOOK_OPEN)
 		ActionBarHelper:ShowAllGrids()
@@ -605,6 +606,21 @@ class "CSpellBook"
 		SpellBookCloseButton:SetScale(layout.scale)
 		SpellBookCloseButton:SetFrameStrata(layout.strata)
 		SpellBookCloseButton:SetFrameLevel(layout.level)
+		SpellBookCloseButton:Show()
+	end;
+
+	-- Put the close button back on pfUI's backdrop (not the vanilla XML anchor).
+	RestorePfUICloseButton = function(self)
+		if (not SpellBookFrame.backdrop) then
+			self:RestoreVanillaCloseButton()
+			return
+		end
+		SpellBookCloseButton:SetScale(1)
+		SpellBookCloseButton:ClearAllPoints()
+		SpellBookCloseButton:SetPoint("TOPRIGHT", SpellBookFrame.backdrop, "TOPRIGHT", -6, -6)
+		SpellBookCloseButton:SetFrameStrata(SpellBookFrame:GetFrameStrata())
+		SpellBookCloseButton:SetFrameLevel(SpellBookFrame:GetFrameLevel() + 10)
+		SpellBookCloseButton:Show()
 	end;
 
 	-- ========================= SHAPE =============================
@@ -1048,6 +1064,14 @@ class "CSpellBook"
 
 	-- ================ HIDE OLD SPELLBOOK =========================
 
+	-- Hide vanilla chrome and any late-loading skins (pfUI backdrop, ShaguTweaks parchment).
+	-- Safe to call repeatedly; /msb toggle restores the vanilla children.
+	ApplyModernOverlay = function(self)
+		self:DisableVanillaSpellBook()
+		self:AddCancelButton()
+		SpellBookFrame:EnableMouse(false)
+	end;
+
 	DisableVanillaSpellBook = function(self)
 		for i, region in ipairs( { SpellBookFrame:GetRegions() } ) do
 			region:Hide()
@@ -1062,6 +1086,69 @@ class "CSpellBook"
 		-- Hide parchment background added by ShaguTweaks "Darkened UI" module
 		if (SpellBookFrame.Material) then
 			SpellBookFrame.Material:Hide()
+		end
+		-- pfUI Spellbook skin: CreateBackdrop/CreateBackdropShadow run after our
+		-- ADDON_LOADED hide pass, leaving a second "beautified" spellbook window.
+		if (SpellBookFrame.backdrop) then
+			SpellBookFrame.backdrop:Hide()
+		end
+		if (SpellBookFrame.backdrop_shadow) then
+			SpellBookFrame.backdrop_shadow:Hide()
+		end
+		if (SpellBookFrame.backdrop_border) then
+			SpellBookFrame.backdrop_border:Hide()
+		end
+	end;
+
+	-- Undo DisableVanillaSpellBook. With pfUI, keep Blizzard artwork hidden
+	-- (StripTextures already cleared it) and show the skinned backdrop instead.
+	RestoreVanillaSpellBook = function(self)
+		if (pfUI and pfUI.LoadSkin and pfUI.skin and pfUI.skin["Spellbook"] and not SpellBookFrame.backdrop) then
+			local skinDisabled = pfUI_config and pfUI_config.disabled and pfUI_config.disabled["skin_Spellbook"] == "1"
+			if (not skinDisabled) then
+				pfUI:LoadSkin("Spellbook")
+			end
+		end
+
+		local pfuiSkinned = SpellBookFrame.backdrop ~= nil
+
+		for i, region in ipairs( { SpellBookFrame:GetRegions() } ) do
+			if (pfuiSkinned and region.SetTexture) then
+				region:Hide()
+			else
+				region:Show()
+			end
+		end
+		for i, child in ipairs({SpellBookFrame:GetChildren()}) do
+			local childName = child:GetName()
+			if (childName ~= "ModernSpellBookFrame") then
+				child:Show()
+			end
+		end
+
+		if (SpellBookFrame.Material) then
+			if (pfuiSkinned) then
+				SpellBookFrame.Material:Hide()
+			else
+				SpellBookFrame.Material:Show()
+			end
+		end
+		if (SpellBookFrame.backdrop) then
+			SpellBookFrame.backdrop:Show()
+		end
+		if (SpellBookFrame.backdrop_shadow) then
+			SpellBookFrame.backdrop_shadow:Show()
+		end
+		if (SpellBookFrame.backdrop_border) then
+			SpellBookFrame.backdrop_border:Show()
+		end
+
+		SpellBookFrame:EnableMouse(true)
+
+		if (pfuiSkinned) then
+			self:RestorePfUICloseButton()
+		else
+			self:RestoreVanillaCloseButton()
 		end
 	end;
 
@@ -1188,16 +1275,41 @@ SpellBook = CSpellBook()
 -- ============================================================
 
 MSB_OriginalSpellBookFrameOnShow = SpellBookFrame_OnShow
+MSB_OriginalSpellBookFrameUpdate = SpellBookFrame_Update
 
-SpellBookFrame_OnShow = function()
+function MSB_ModernSpellBookFrameOnShow()
 	if (ModernSpellBookFrame.isForceLoading) then return end
-	-- Hide ShaguTweaks parchment if it was added after our init
-	if (SpellBookFrame.Material) then
-		SpellBookFrame.Material:Hide()
-	end
+	SpellBook:ApplyModernOverlay()
 	ModernSpellBookFrame:Show()
-	SpellBookFrame:EnableMouse(false)
 end
+
+-- Keep vanilla/pfUI from re-showing native buttons on SPELLS_CHANGED.
+function MSB_ModernSpellBookFrameUpdate()
+	if (SlashCommands and SlashCommands.enabled) then
+		SpellBook:ApplyModernOverlay()
+		return
+	end
+	if (MSB_OriginalSpellBookFrameUpdate) then
+		MSB_OriginalSpellBookFrameUpdate()
+	end
+end
+
+SpellBookFrame_OnShow = MSB_ModernSpellBookFrameOnShow
+if (SpellBookFrame_Update) then
+	SpellBookFrame_Update = MSB_ModernSpellBookFrameUpdate
+end
+
+-- pfUI skins SpellBookFrame after we first hide it. Re-hide chrome once that
+-- skin exists; do not skip or re-run the skin (that breaks close button / art).
+local pfuiCompat = CreateFrame("Frame")
+pfuiCompat:RegisterEvent("ADDON_LOADED")
+pfuiCompat:RegisterEvent("PLAYER_ENTERING_WORLD")
+pfuiCompat:SetScript("OnEvent", function()
+	if (event == "ADDON_LOADED" and arg1 ~= "pfUI") then return end
+	if (SlashCommands and SlashCommands.enabled) then
+		SpellBook:ApplyModernOverlay()
+	end
+end)
 
 -- Reset seen-available list on level up
 local levelTracker = CreateFrame("Frame")

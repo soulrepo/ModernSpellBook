@@ -1,9 +1,10 @@
 --[[
 	Slash commands for ModernSpellBook.
-	/msb          - Toggle between modern and vanilla spellbook
-	/msb talents  - Toggle between modern and vanilla talent tree
-	/msb reset    - Reset all settings to defaults
-	/msb rescan   - Clear trainer cache (rescan on next trainer visit)
+	/msb            - Show help
+	/msb spellbook  - Toggle between modern and vanilla spellbook
+	/msb talents    - Toggle between modern and vanilla talent tree
+	/msb reset      - Reset all settings to defaults
+	/msb rescan     - Clear trainer cache (rescan on next trainer visit)
 --]]
 
 class "CSlashCommands"
@@ -23,7 +24,9 @@ class "CSlashCommands"
 		cmd = string.gsub(cmd, "^%s+", "")
 		cmd = string.gsub(cmd, "%s+$", "")
 
-		if (cmd == "") then
+		if (cmd == "" or cmd == "help") then
+			self:PrintHelp()
+		elseif (cmd == "spellbook") then
 			self:Toggle()
 		elseif (cmd == "talents") then
 			self:ToggleTalents()
@@ -54,25 +57,14 @@ class "CSlashCommands"
 	DisableModern = function(self)
 		self.enabled = false
 
-		-- Restore vanilla SpellBookFrame_OnShow
+		-- Restore vanilla SpellBookFrame_OnShow / SpellBookFrame_Update
 		SpellBookFrame_OnShow = MSB_OriginalSpellBookFrameOnShow
-
-		-- Re-show vanilla children
-		for i, region in ipairs( { SpellBookFrame:GetRegions() } ) do
-			region:Show()
-		end
-		for i, child in ipairs({SpellBookFrame:GetChildren()}) do
-			local childName = child:GetName()
-			if (childName ~= "ModernSpellBookFrame") then
-				child:Show()
-			end
+		if (MSB_OriginalSpellBookFrameUpdate) then
+			SpellBookFrame_Update = MSB_OriginalSpellBookFrameUpdate
 		end
 
-		SpellBookFrame:EnableMouse(true)
-
-		-- Hide our frame
 		ModernSpellBookFrame:Hide()
-		SpellBook:RestoreVanillaCloseButton()
+		SpellBook:RestoreVanillaSpellBook()
 
 		DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00ModernSpellBook:|r " .. MSB_L("CmdDisabled"))
 	end;
@@ -80,16 +72,11 @@ class "CSlashCommands"
 	EnableModern = function(self)
 		self.enabled = true
 
-		-- Replace vanilla SpellBookFrame_OnShow
-		SpellBookFrame_OnShow = function()
-			if (ModernSpellBookFrame.isForceLoading) then return end
-			ModernSpellBookFrame:Show()
-			SpellBookFrame:EnableMouse(false)
+		SpellBookFrame_OnShow = MSB_ModernSpellBookFrameOnShow
+		if (SpellBookFrame_Update) then
+			SpellBookFrame_Update = MSB_ModernSpellBookFrameUpdate
 		end
-
-		-- Hide vanilla children
-		SpellBook:AddCancelButton()
-		SpellBook:DisableVanillaSpellBook()
+		SpellBook:ApplyModernOverlay()
 
 		DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00ModernSpellBook:|r " .. MSB_L("CmdEnabled"))
 	end;
@@ -152,6 +139,7 @@ class "CSlashCommands"
 
 	PrintHelp = function(self)
 		DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00ModernSpellBook|r " .. MSB_L("CmdHelpTitle"))
+		DEFAULT_CHAT_FRAME:AddMessage("  " .. MSB_L("CmdHelpBare"))
 		DEFAULT_CHAT_FRAME:AddMessage("  " .. MSB_L("CmdHelpToggle"))
 		DEFAULT_CHAT_FRAME:AddMessage("  " .. MSB_L("CmdHelpTalents"))
 		DEFAULT_CHAT_FRAME:AddMessage("  " .. MSB_L("CmdHelpReset"))

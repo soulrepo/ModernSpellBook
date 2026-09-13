@@ -21,7 +21,8 @@ Files load in the order declared in `ModernSpellBook.toc`; later files depend on
 
 There is no CLI test path. To verify changes, the user copies the folder into their game's `Interface/AddOns/` and runs `/reload` (or `/msb reset` to restore defaults). Relevant slash commands:
 
-- `/msb` — toggle modern vs vanilla spellbook
+- `/msb` — show slash-command help
+- `/msb spellbook` — toggle modern vs vanilla spellbook
 - `/msb talents` — toggle custom talent tree
 - `/msb reset` — reset settings to defaults (keep spell cache)
 - `/msb rescan` — clear trainer spell cache, rescan on next trainer visit
