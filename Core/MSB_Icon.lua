@@ -54,8 +54,9 @@ class "CIcon"
 			self.cooldown = cd_frame
 			self.cooldown:SetPoint("TOPLEFT", self.icon, "TOPLEFT", 0, 0)
 			self.cooldown:SetPoint("BOTTOMRIGHT", self.icon, "BOTTOMRIGHT", 0, 0)
-			if (self.cooldown.SetDrawEdge) then
-				self.cooldown:SetDrawEdge(false)
+			-- The 1.12 template yields a Model frame; SetDrawEdge only works on real Cooldown frames.
+			if (self.cooldown.SetDrawEdge and self.cooldown.GetObjectType and self.cooldown:GetObjectType() == "Cooldown") then
+				pcall(self.cooldown.SetDrawEdge, self.cooldown, false)
 			end
 		else
 			self.cooldown = nil
