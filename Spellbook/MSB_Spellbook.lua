@@ -578,10 +578,18 @@ class "CSpellBook"
 
 	-- Talent tree is HIGH; its icon borders/arrows are separate frames and will
 	-- draw through this window if we share that strata. DIALOG keeps us above.
+	-- No Raise(): on 1.12 it lifts only this frame, not its children, so the
+	-- page buttons and search box made at load ended up under the window
+	-- (invisible / unclickable). A fixed level keeps children above us.
 	ApplyFrameLayer = function(self)
 		self.frame:SetFrameStrata("DIALOG")
 		self.frame:SetFrameLevel(50)
-		self.frame:Raise()
+		local level = self.frame:GetFrameLevel()
+		for _, child in ipairs({self.frame:GetChildren()}) do
+			if (child:GetFrameLevel() <= level) then
+				child:SetFrameLevel(level + 1)
+			end
+		end
 		if (SpellBookCloseButton) then
 			SpellBookCloseButton:SetFrameStrata("DIALOG")
 			SpellBookCloseButton:SetFrameLevel(self.frame:GetFrameLevel() + 10)
